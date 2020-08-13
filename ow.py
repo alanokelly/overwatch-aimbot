@@ -2,19 +2,22 @@ import cv2
 from math import pow, sqrt
 from mss import mss
 import numpy as np
+import time
 
 from win32 import win32api
 import win32con
 
 import lib.viz as viz
 
-if __debug__:
-    cv2.namedWindow('res', cv2.WINDOW_NORMAL)
+# if __debug__:
+    # cv2.namedWindow('res', cv2.WINDOW_NORMAL)
 
 # The size of the window to scan for targets in, in pixels
 # i.e. SQUARE_SIZE of 600 => 600 x 600px
 SQUARE_SIZE = 600
 viz.SQUARE_SIZE = SQUARE_SIZE
+startTime = int(round(time.time() * 1000))
+autoshotOn = False
 
 # The maximum possible pixel distance that a character's center
 # can be before locking onto them
@@ -43,11 +46,14 @@ def mouse_move(x, y):
 
 # Determines if the Caps Lock key is pressed in or not
 def is_activated():
+    return win32api.GetAsyncKeyState(0x10) != 0
+    
+def is_activated_autoshot():
     return win32api.GetAsyncKeyState(0x14) != 0
-
 
 def locate_target(target):
     # compute the center of the contour
+    global autoshotOn
     moment = cv2.moments(target)
     if moment["m00"] == 0:
         return
@@ -69,19 +75,30 @@ def locate_target(target):
     multiplier = ((MAX_TARGET_DISTANCE - distance) / target_size) * slope + 1
 
     if is_activated():
-        mouse_move(int(x * multiplier), int(y * multiplier))
+        mouse_move(int(x * multiplier), int(y * multiplier * -1))
+        
+    if autoshotOn:
+        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN,x,y,0,0)
+        sleep(0.1)
+        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP,x,y,0,0)
 
-    if __debug__:
-        # draw the contour of the chosen target in green
-        cv2.drawContours(frame, [target], -1, (0, 255, 0), 2)
-        # draw a small white circle at their center of mass
-        cv2.circle(frame, (cx, cy), 7, (255, 255, 255), -1)
+    # if __debug__:
+        # # draw the contour of the chosen target in green
+        # cv2.drawContours(frame, [target], -1, (0, 255, 0), 2)
+        # # draw a small white circle at their center of mass
+        # cv2.circle(frame, (cx, cy), 7, (255, 255, 255), -1)
 
 
 # Main lifecycle
 while True:
     frame = np.asarray(sct.grab(dimensions))
     contours = viz.process(frame)
+    
+    currentTime = int(round(time.time() * 1000))
+    if currentTime > startTime + 500 and is_activated_autoshot():
+        startTime = currentTime
+        autoshotOn = not autoshotOn
+        print("Autoshot: " + str(autoshotOn))
 
     # For now, just attempt to lock on to the largest contour match
     if len(contours) > 1:
@@ -89,14 +106,11 @@ while True:
         # contour[1] == closest/largest character
         locate_target(contours[1])
 
-    if __debug__:
-        # Green contours are the "character" matches
-        cv2.drawContours(frame, contours, -1, (0, 255, 0), 1)
-        cv2.imshow('res', frame)
+    # if __debug__:
+        # # Green contours are the "character" matches
+        # cv2.drawContours(frame, contours, -1, (0, 255, 0), 1)
+        # cv2.imshow('res', frame)
 
-    # Press `q` to stop the program
-    if cv2.waitKey(25) & 0xFF == ord("q"):
-            break
 
 sct.close()
 cv2.destroyAllWindows()
