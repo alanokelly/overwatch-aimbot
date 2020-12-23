@@ -50,7 +50,10 @@ def is_activated():
     return win32api.GetAsyncKeyState(0x10) != 0
     
 def is_activated_autoshot():
-    return win32api.GetAsyncKeyState(0x14) != 0
+    return win32api.GetAsyncKeyState(0x61) != 0
+    
+def is_activated_autoshot():
+    return win32api.GetAsyncKeyState(0x62) != 0    
 
 def locate_target(targets):
     # compute the center of the contour
@@ -106,23 +109,19 @@ def locate_target(targets):
             win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP,currentX,currentY,0,0)
             
             randomSleep = float(decimal.Decimal(random.randrange(05, 12))/100)
-            sleep(randomSleep)
+            sleep(randomSleep)      
     
-    if headshotOn:
-        (headshotX, headshotY, headshotW, headshotH) = cv2.boundingRect(target)
-        quarterHeight = headshotH/4 # get the quarter height to boost up Y        
-        y = y-quarterHeight          
-    
-    target_size = cv2.contourArea(target)
-    distance = sqrt(pow(x, 2) + pow(y, 2))
-
-    # There's definitely some sweet spot to be found here
-    # for the sensitivity in regards to the target's size
-    # and distance
-    slope = ((1.0 / 3.0) - 1.0) / (MAX_TARGET_DISTANCE / target_size)
-    multiplier = ((MAX_TARGET_DISTANCE - distance) / target_size) * slope + 1
-
     if is_activated():
+        if headshotOn:
+            (headshotX, headshotY, headshotW, headshotH) = cv2.boundingRect(target)
+            quarterHeight = headshotH/4 # get the quarter height to boost up Y        
+            y = y-quarterHeight     
+        
+        target_size = cv2.contourArea(target)
+        distance = sqrt(pow(x, 2) + pow(y, 2))
+        slope = ((1.0 / 3.0) - 1.0) / (MAX_TARGET_DISTANCE / target_size)
+        multiplier = ((MAX_TARGET_DISTANCE - distance) / target_size) * slope + 1
+    
         mouse_move(int(x * multiplier), int(y * multiplier * -1))       
 
     # if __debug__:
@@ -137,18 +136,20 @@ while True:
     frame = np.asarray(sct.grab(dimensions))
     contours = viz.process(frame)
     
+    print("Autoshot: " + str(autoshotOn))
+    print("Headshot: " + str(headshotOn))  
+    
     currentTime = int(round(time.time() * 1000))
     if currentTime > startTime + 500:
         if is_activated_autoshot():
             startTime = currentTime
             autoshotOn = not autoshotOn
             print("Autoshot: " + str(autoshotOn))
-        if is_activated_autoshot():
+        if is_activated_headshot():
             startTime = currentTime
-            autoshotOn = not autoshotOn
-            print("Autoshot: " + str(autoshotOn))            
+            headshotOn = not headshotOn
+            print("Headshot: " + str(headshotOn))            
 
-    # For now, just attempt to lock on to the largest contour match
     if len(contours) > 1:
         # contour[0] == bounding window frame
         # contour[1] == closest/largest character
